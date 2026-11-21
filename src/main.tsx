@@ -4,6 +4,8 @@ import { lengthOptions, type Analysis, type AnalysisRequest } from '../shared/co
 import { parseYouTubeUrl } from '../shared/youtube'
 import { analyzeVideo, StudioError, unlockStudio } from './api'
 import { Review } from './Review'
+import { Editor } from './media/Editor'
+import type { SuggestedCut } from './media/settings'
 import './styles.css'
 
 function EmptyTimeline() {
@@ -64,6 +66,7 @@ function Studio({ token, onExpired }: { token: string; onExpired: () => void }) 
   const [urlError, setUrlError] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [suggested, setSuggested] = useState<SuggestedCut | null>(null)
   const [result, setResult] = useState<{ analysis: Analysis; revision: number } | null>(null)
   const run = useRef<AbortController | null>(null)
   const urlInput = useRef<HTMLInputElement>(null)
@@ -127,14 +130,14 @@ function Studio({ token, onExpired }: { token: string; onExpired: () => void }) 
             <button type="submit" className="primary" disabled={loading}>{loading ? 'Analyzing video…' : 'Analyze video'} <span aria-hidden="true">↗</span></button>
             {error && <p className="error" role="alert">{error}</p>}
           </form>
-          <p className="export-note"><strong>Source file for export</strong>Future export requires an authorized source MP4.</p>
+          <a className="source-link editor-jump" href="#cut-editor">Open local cut editor ↓</a>
         </aside>
         <section className="panel results-panel" aria-labelledby="results-title" aria-busy={loading}>
           <div className="section-bar">
             <h2 id="results-title">Highlight review</h2>
             {result && <span className="muted">{result.analysis.clips.length} {result.analysis.clips.length === 1 ? 'selection' : 'selections'}</span>}
           </div>
-          {result ? <Review key={result.revision} analysis={result.analysis} /> : (
+          {result ? <Review key={result.revision} analysis={result.analysis} onCut={setSuggested} /> : (
             <div className="empty-panel">
               <EmptyTimeline />
               <h3>{loading ? 'Reviewing the source' : 'Your picks will appear here'}</h3>
@@ -143,6 +146,7 @@ function Studio({ token, onExpired }: { token: string; onExpired: () => void }) 
           )}
         </section>
       </div>
+      <Editor suggested={suggested} />
       <p className="sr-only" role="status">{loading ? 'Analysis in progress.' : result ? `Analysis complete. ${result.analysis.clips.length} selections.` : ''}</p>
     </main>
   )

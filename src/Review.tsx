@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Analysis, Clip } from '../shared/contracts'
 import { watchUrl } from '../shared/youtube'
+import type { SuggestedCut } from './media/settings'
 
 function timecode(seconds: number) {
   const hours = Math.floor(seconds / 3600)
@@ -13,7 +14,7 @@ function range(clip: Clip) {
   return `${timecode(clip.source_start_seconds)} – ${timecode(clip.source_end_seconds)}`
 }
 
-export function Review({ analysis }: { analysis: Analysis }) {
+export function Review({ analysis, onCut }: { analysis: Analysis; onCut: (cut: SuggestedCut) => void }) {
   const [clips, setClips] = useState(analysis.clips)
   const [selectedIndex, selectClip] = useState(0)
   const [preview, setPreview] = useState<string | null>(null)
@@ -101,6 +102,7 @@ export function Review({ analysis }: { analysis: Analysis }) {
           <div><dt>Opening hook</dt><dd>{selected.opening_hook}</dd></div>
           <div><dt>Why it works</dt><dd>{selected.rationale}</dd></div>
         </dl>
+        <button type="button" className="secondary use-cut" onClick={() => onCut({ start: selected.source_start_seconds, end: selected.source_end_seconds, title: selected.title })}>Use these timestamps</button>
         <a className="source-link" href={anchor} target="_blank" rel="noopener noreferrer">Open on YouTube at {timecode(selected.source_start_seconds)} <span aria-hidden="true">↗</span></a>
       </section>
       <ol className="clip-list" aria-label="Highlights ranked by quality">
