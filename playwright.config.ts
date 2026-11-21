@@ -1,14 +1,16 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const external = process.env.CUTROOM_TEST_URL
+
 export default defineConfig({
   testDir: 'tests',
   testMatch: '**/*.browser.ts',
   workers: 2,
   use: {
-    baseURL: 'http://127.0.0.1:4177',
+    baseURL: external ?? 'http://127.0.0.1:4177',
     launchOptions: { executablePath: process.env.CUTROOM_CHROMIUM_PATH },
   },
-  webServer: {
+  webServer: external ? undefined : {
     command: 'npm run build && npm exec -- vite preview --host 127.0.0.1 --port 4177 --strictPort',
     url: 'http://127.0.0.1:4177',
   },
