@@ -1,0 +1,16 @@
+name = "cutroom-analysis"
+main = "index.ts"
+compatibility_date = "2026-11-20"
+workers_dev = false
+preview_urls = false
+
+[observability]
+enabled = false
+
+[[durable_objects.bindings]]
+name = "ANALYSIS_QUOTA"
+class_name = "AnalysisQuota"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AnalysisQuota"]
