@@ -1,6 +1,7 @@
 import { FFmpeg, FFFSType } from '@ffmpeg/ffmpeg'
 import corePath from '@ffmpeg/core?url'
 import packedPath from 'virtual:cutroom-ffmpeg'
+import { captionsInRange, subtitleScript, type Caption, type CaptionPreset } from './captions'
 import { cropFilter, resolutions, type ExportSettings } from './settings'
 
 type Progress = (progress: number | null, message: string) => void
@@ -47,18 +48,38 @@ export async function useMediaEngine<T>(
   }
 }
 
-export async function renderClip(file: File, settings: ExportSettings, progress: Progress, signal: AbortSignal) {
+export async function renderClip(
+  file: File,
+  settings: ExportSettings,
+  progress: Progress,
+  signal: AbortSignal,
+  subtitles?: { captions: Caption[]; preset: CaptionPreset },
+) {
   const duration = settings.end - settings.start
   try {
     return await useMediaEngine(file, AbortSignal.any([signal, AbortSignal.timeout(720_000)]), progress, async (ffmpeg, input) => {
       const report = ({ time }: { time: number }) => progress(Math.min(0.99, Math.max(0, time / 1_000_000 / duration)), 'Encoding MP4')
       ffmpeg.on('progress', report)
+      let filter = cropFilter(settings)
+      if (subtitles && captionsInRange(subtitles.captions, settings).length) {
+        progress(null, 'Preparing captions')
+        await ffmpeg.createDir('/caption-fonts')
+        const fonts = ['DejaVuSans-Bold.ttf', 'NotoSansDevanagari.ttf']
+        await Promise.all(fonts.map(async (font) => {
+          const response = await fetch('/caption-fonts/' + font, { signal })
+          if (!response.ok) throw new Error('Caption fonts could not load. Check your connection and retry.')
+          await ffmpeg.writeFile('/caption-fonts/' + font, new Uint8Array(await response.arrayBuffer()))
+        }))
+        const script = subtitleScript(subtitles.captions, settings, subtitles.preset)
+        await ffmpeg.writeFile('/cut.ass', new TextEncoder().encode(script))
+        filter += ',ass=/cut.ass:fontsdir=/caption-fonts'
+      }
       const { maxRate } = resolutions[settings.resolution]
       progress(0, 'Encoding MP4')
       const code = await ffmpeg.exec([
         '-hide_banner', '-loglevel', 'error', '-threads', '1', '-ss', settings.start.toFixed(3), '-i', input,
         '-t', duration.toFixed(3), '-map', '0:v:0', '-map', '0:a:0?', '-sn', '-dn',
-        '-filter_threads', '1', '-vf', cropFilter(settings),
+        '-filter_threads', '1', '-vf', filter,
         '-c:v', 'libx264', '-threads', '1', '-preset', 'ultrafast', '-crf', '23',
         '-maxrate', maxRate, '-bufsize', maxRate, '-pix_fmt', 'yuv420p', '-c:a', 'aac',
         '-b:a', '128k', '-ac', '2', '-movflags', '+faststart', OUTPUT,

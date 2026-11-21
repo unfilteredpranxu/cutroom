@@ -65,3 +65,73 @@ test('real browser encode crops and trims playable H.264/AAC MP4s, then download
     '1-Real-export-540.mp4', '2-Real-export-1080.mp4',
   ])
 })
+
+test('real burned captions appear only inside the imported source time range', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'Pixel verification runs once on desktop.')
+  test.setTimeout(100_000)
+  const input = info.outputPath('authorized-captions-source.mp4')
+  execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'color=c=0x15243a:size=640x360:rate=30',
+    '-f', 'lavfi', '-i', 'sine=frequency=550:sample_rate=48000', '-t', '3',
+    '-c:v', 'libx264', '-threads', '1', '-pix_fmt', 'yuv420p', '-c:a', 'aac', input])
+  await unlock(page)
+  await page.getByLabel('Authorized source video').setInputFiles(input)
+  await expect(page.getByRole('button', { name: 'Export MP4' })).toBeEnabled()
+  await page.getByLabel('Start (seconds)').fill('0.4')
+  await page.getByLabel('End (seconds)').fill('2.0')
+  await page.locator('.caption-settings summary').click()
+  await page.getByLabel('Import SRT or VTT').setInputFiles({
+    name: 'authorized-captions.srt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('1\n00:00:00,300 --> 00:00:00,950\nREAL CAPTIONS\n'),
+  })
+  await expect(page.getByLabel('In (seconds)')).toHaveValue('0.7')
+  await page.getByLabel('Caption 1', { exact: true }).fill('EDITED CAPTIONS')
+  await page.getByLabel('Out (seconds)').fill('1.45')
+  await page.getByLabel('Caption preset').selectOption('studio')
+  await page.getByRole('button', { name: 'Export MP4' }).click()
+  const link = page.getByRole('link', { name: 'Download MP4' })
+  await expect(link).toBeVisible({ timeout: 65_000 })
+  const download = page.waitForEvent('download')
+  await link.click()
+  const output = info.outputPath('actual-captioned.mp4')
+  await (await download).saveAs(output)
+  function whitePixels(at: string) {
+    const bytes = execFileSync('ffmpeg', ['-v', 'error', '-ss', at, '-i', output, '-frames:v', '1',
+      '-vf', 'crop=400:140:60:710', '-pix_fmt', 'rgb24', '-f', 'rawvideo', '-'])
+    let count = 0
+    for (let index = 0; index < bytes.length; index += 3) {
+      if (bytes[index] > 210 && bytes[index + 1] > 210 && bytes[index + 2] > 210) count++
+    }
+    return count
+  }
+  assert.equal(whitePixels('0.05'), 0)
+  assert.ok(whitePixels('0.6') > 100, 'Readable white caption glyphs should be burned into the frame.')
+  assert.equal(whitePixels('1.3'), 0)
+  execFileSync('ffmpeg', ['-v', 'error', '-i', output, '-f', 'null', '-'])
+})
+
+test('a model download failure preserves the editable caption workflow', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'Model transport fallback runs once.')
+  const input = info.outputPath('authorized-audio-fallback.mp4')
+  execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'color=c=black:size=320x180:rate=24',
+    '-f', 'lavfi', '-i', 'sine=frequency=450:sample_rate=48000', '-t', '1',
+    '-c:v', 'libx264', '-threads', '1', '-pix_fmt', 'yuv420p', '-c:a', 'aac', input])
+  await unlock(page)
+  await page.getByLabel('Authorized source video').setInputFiles(input)
+  await page.locator('.caption-settings summary').click()
+  let requests = 0
+  await page.route('https://huggingface.co/**', (route) => {
+    requests++
+    expect(route.request().method()).toBe('GET')
+    expect(route.request().postData()).toBeNull()
+    return route.abort()
+  })
+  await page.getByRole('button', { name: 'Transcribe this cut on device' }).click()
+  await expect(page.getByText('Local speech recognition is unavailable.', { exact: false })).toBeVisible({ timeout: 25_000 })
+  expect(requests).toBeGreaterThan(0)
+  await page.getByLabel('Import SRT or VTT').setInputFiles({
+    name: 'local.vtt', mimeType: 'text/vtt',
+    buffer: Buffer.from('WEBVTT\n\n00:00.100 --> 00:00.850\nLocal captions\n'),
+  })
+  await expect(page.getByLabel('Caption 1', { exact: true })).toHaveValue('Local captions')
+})

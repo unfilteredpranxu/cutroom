@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { CaptionEditor } from './CaptionEditor'
+import { captionsAreValid, type Caption, type CaptionPreset } from './captions'
 import { Library, type RenderedClip } from './Library'
 import { exportName, MAX_LIBRARY_BYTES, rangeError, sourceError, type Resolution, type SuggestedCut } from './settings'
 
 type Frame = { duration: number; width: number; height: number }
 type Source = { file: File; url: string }
-type Job = { fraction: number | null; message: string }
+type Job = { fraction: number | null; message: string; kind: 'export' | 'transcription' }
 
 export function Editor({ suggested }: { suggested: SuggestedCut | null }) {
   const [source, setSource] = useState<Source | null>(null)
@@ -19,6 +21,10 @@ export function Editor({ suggested }: { suggested: SuggestedCut | null }) {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [job, setJob] = useState<Job | null>(null)
+  const [captions, setCaptions] = useState<Caption[]>([])
+  const [preset, setPreset] = useState<CaptionPreset>('editorial')
+  const [burn, setBurn] = useState(true)
+  const [previewTime, setPreviewTime] = useState(0)
   const [clips, setClips] = useState<RenderedClip[]>([])
   const video = useRef<HTMLVideoElement>(null)
   const heading = useRef<HTMLHeadingElement>(null)
@@ -28,6 +34,7 @@ export function Editor({ suggested }: { suggested: SuggestedCut | null }) {
 
   useEffect(() => {
     if (!suggested) return
+    operation.current?.abort()
     setTitle(suggested.title)
     setStart(String(suggested.start))
     setEnd(String(suggested.end))
@@ -54,6 +61,8 @@ export function Editor({ suggested }: { suggested: SuggestedCut | null }) {
     setNotice('')
     if (problem) return
     setFrame(null)
+    setCaptions([])
+    setPreviewTime(0)
     previewWindow.current = null
     setSource({ file, url: URL.createObjectURL(file) })
     if (!suggested) {
@@ -89,12 +98,47 @@ export function Editor({ suggested }: { suggested: SuggestedCut | null }) {
     }
   }
 
+  async function transcribe() {
+    if (!source || !frame || operation.current) return
+    const problem = rangeError(range, frame.duration)
+    setError(problem)
+    setNotice('')
+    if (problem) return
+    const controller = new AbortController()
+    operation.current = controller
+    const report = (fraction: number | null, message: string) => {
+      if (!controller.signal.aborted) setJob({ fraction, message, kind: 'transcription' })
+    }
+    report(null, 'Starting transcription')
+    video.current?.pause()
+    try {
+      const { transcribeClip } = await import('./speech')
+      controller.signal.throwIfAborted()
+      const generated = await transcribeClip(source.file, range, report, controller.signal)
+      controller.signal.throwIfAborted()
+      if (!generated.length) throw new Error('Whisper did not return usable timed speech. Import or add captions to continue.')
+      setCaptions(generated)
+      setNotice('Draft captions ready. Review the wording and timing before exporting.')
+    } catch (failure) {
+      if (controller.signal.aborted) setNotice('Transcription canceled.')
+      else setError(failure instanceof Error && failure.name !== 'TimeoutError' ? failure.message : 'Transcription took too long. Try a shorter cut or import captions.')
+    } finally {
+      operation.current = null
+      setJob(null)
+    }
+  }
+
   async function exportClip() {
     if (!source || !frame || operation.current) return
     const problem = rangeError(range, frame.duration)
     setError(problem)
     setNotice('')
     if (problem) return
+    if (burn && !captionsAreValid(captions, frame.duration)) {
+      setError('Review the captions. Each cue needs text and a valid range within the source video.')
+      return
+    }
+    const subtitles = burn ? { captions, preset } : undefined
     if (clips.reduce((total, clip) => total + clip.blob.size, 0) >= MAX_LIBRARY_BYTES) {
       setError('Download and remove a previous clip before starting another export.')
       return
@@ -102,7 +146,7 @@ export function Editor({ suggested }: { suggested: SuggestedCut | null }) {
     const controller = new AbortController()
     operation.current = controller
     const report = (fraction: number | null, message: string) => {
-      if (!controller.signal.aborted) setJob({ fraction, message })
+      if (!controller.signal.aborted) setJob({ fraction, message, kind: 'export' })
     }
     report(null, 'Starting export')
     video.current?.pause()
@@ -113,12 +157,12 @@ export function Editor({ suggested }: { suggested: SuggestedCut | null }) {
       let actualResolution = resolution
       let blob: Blob
       try {
-        blob = await renderClip(source.file, settings, report, controller.signal)
+        blob = await renderClip(source.file, settings, report, controller.signal, subtitles)
       } catch (failure) {
         if (controller.signal.aborted || resolution === '540') throw failure
         setNotice('The requested resolution could not be encoded. Retrying at 540 × 960.')
         actualResolution = '540'
-        blob = await renderClip(source.file, { ...settings, resolution: actualResolution }, report, controller.signal)
+        blob = await renderClip(source.file, { ...settings, resolution: actualResolution }, report, controller.signal, subtitles)
       }
       controller.signal.throwIfAborted()
       if (clips.reduce((total, clip) => total + clip.blob.size, blob.size) > MAX_LIBRARY_BYTES) {
@@ -141,6 +185,8 @@ export function Editor({ suggested }: { suggested: SuggestedCut | null }) {
       }
     }
   }
+
+  const activeCaption = burn ? captions.find((caption) => caption.start <= previewTime && caption.end > previewTime) : undefined
 
   return (
     <div className="editing-area">
@@ -176,6 +222,7 @@ export function Editor({ suggested }: { suggested: SuggestedCut | null }) {
                 <option value="720">720 × 1280</option>
                 <option value="1080">1080 × 1920 · highest</option>
               </select>
+              <CaptionEditor {...{ captions, setCaptions, range, preset, setPreset, burn, setBurn }} canTranscribe={!!frame} onTranscribe={transcribe} />
               <div className="editor-actions">
                 <button type="button" className="secondary" disabled={!frame} onClick={previewCut}>Play cut</button>
                 <button type="button" className="primary" disabled={!frame} onClick={exportClip}>Export MP4 <span aria-hidden="true">↗</span></button>
@@ -185,7 +232,7 @@ export function Editor({ suggested }: { suggested: SuggestedCut | null }) {
               <div className="job-state">
                 <span id="export-status" role="status">{job.message}{job.fraction !== null ? ` · ${Math.floor(job.fraction * 100)}%` : ''}</span>
                 <progress aria-labelledby="export-status" value={job.fraction ?? undefined} max={1} />
-                <button type="button" className="secondary" onClick={() => operation.current?.abort()}>Cancel export</button>
+                <button type="button" className="secondary" onClick={() => operation.current?.abort()}>Cancel {job.kind}</button>
               </div>
             )}
             {notice && <p className="field-help" role="status">{notice}</p>}
@@ -200,6 +247,7 @@ export function Editor({ suggested }: { suggested: SuggestedCut | null }) {
                   onLoadedMetadata={metadata}
                   onError={() => { setFrame(null); setError('The browser could not read this video. Try an H.264 MP4.') }}
                   onTimeUpdate={(event) => {
+                    setPreviewTime(event.currentTarget.currentTime)
                     if (previewWindow.current && event.currentTarget.currentTime >= previewWindow.current.end) {
                       event.currentTarget.pause()
                       previewWindow.current = null
@@ -207,6 +255,13 @@ export function Editor({ suggested }: { suggested: SuggestedCut | null }) {
                   }}
                 />
               ) : <p>Vertical preview</p>}
+              {activeCaption && (
+                <div className={`caption-overlay caption-${preset}`} aria-hidden="true">
+                  {preset === 'kinetic' && activeCaption.words
+                    ? activeCaption.words.map((word) => <span key={word.start} className={word.start <= previewTime ? 'spoken' : ''}>{word.text} </span>)
+                    : activeCaption.text}
+                </div>
+              )}
             </div>
             {frame && <button type="button" className="text-button" onClick={() => video.current?.pause()}>Pause preview</button>}
           </div>
