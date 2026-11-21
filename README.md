@@ -44,3 +44,7 @@ The Worker uses Google's JavaScript SDK to send an authenticated `POST /v1beta/i
 The server parses the structured response, drops invalid scores and time ranges, validates against reported duration if present, and keeps the higher-ranked selection when intervals overlap. Reported duration and timestamps should be checked in the source preview. Embeds also depend on the video owner's YouTube permissions.
 
 Official references: [Gemini video understanding](https://ai.google.dev/gemini-api/docs/video-understanding), [Google's Hydrogen and YouTube cookbook](https://github.com/google-gemini/cookbook/blob/main/quickstarts/Video_understanding.ipynb), [Pages service bindings](https://developers.cloudflare.com/pages/functions/bindings/#service-bindings), [Durable Objects pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/).
+
+### Optional live check
+
+With an already configured free-tier Gemini key in the process environment, set `CUTROOM_GEMINI_LIVE=1` and `CUTROOM_LIVE_YOUTUBE_URL` to a suitable short public video, then run `npm test -- tests/gemini.live.test.ts`. This uses one analysis request. Ordinary tests skip the live check and use labeled fixtures.
