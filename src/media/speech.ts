@@ -5,6 +5,9 @@ import type { ClipRange } from './settings'
 type Progress = (value: number | null, message: string) => void
 
 export async function transcribeClip(file: File, range: ClipRange, report: Progress, signal: AbortSignal) {
+  if (typeof AbortSignal.any !== 'function') {
+    throw new Error('This browser cannot run local speech recognition. Import an SRT/VTT file.')
+  }
   const taskSignal = AbortSignal.any([signal, AbortSignal.timeout(480_000)])
   const pcm = await useMediaEngine(file, taskSignal, report, async (ffmpeg, input) => {
     report(null, 'Reading the selected audio locally')

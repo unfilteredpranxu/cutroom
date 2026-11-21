@@ -14,6 +14,9 @@ export async function useMediaEngine<T>(
   progress: Progress,
   task: (engine: FFmpeg, input: string) => Promise<T>,
 ) {
+  if (typeof AbortSignal.any !== 'function' || typeof DecompressionStream !== 'function' || typeof WebAssembly !== 'object') {
+    throw new Error('Update Safari or use a current browser that supports local WebAssembly video processing.')
+  }
   const ffmpeg = new FFmpeg()
   const loadSignal = AbortSignal.any([signal, AbortSignal.timeout(120_000)])
   const stop = () => ffmpeg.terminate()

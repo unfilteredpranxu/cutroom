@@ -139,7 +139,7 @@ export function Editor({ suggested }: { suggested: SuggestedCut | null }) {
       return
     }
     const subtitles = burn ? { captions, preset } : undefined
-    if (clips.reduce((total, clip) => total + clip.blob.size, 0) >= MAX_LIBRARY_BYTES) {
+    if (clips.length >= 20 || clips.reduce((total, clip) => total + clip.blob.size, 0) >= MAX_LIBRARY_BYTES) {
       setError('Download and remove a previous clip before starting another export.')
       return
     }
@@ -186,6 +186,12 @@ export function Editor({ suggested }: { suggested: SuggestedCut | null }) {
     }
   }
 
+  function replaceCaptions(cues: Caption[]) {
+    setCaptions(cues)
+    setError('')
+    setNotice('')
+  }
+
   const activeCaption = burn ? captions.find((caption) => caption.start <= previewTime && caption.end > previewTime) : undefined
 
   return (
@@ -230,7 +236,7 @@ export function Editor({ suggested }: { suggested: SuggestedCut | null }) {
                 <option value="720">720 × 1280</option>
                 <option value="1080">1080 × 1920 · highest</option>
               </select>
-              <CaptionEditor {...{ captions, setCaptions, range, preset, setPreset, burn, setBurn }} canTranscribe={!!frame} onTranscribe={transcribe} />
+              <CaptionEditor {...{ captions, range, preset, setPreset, burn, setBurn }} setCaptions={replaceCaptions} canTranscribe={!!frame} onTranscribe={transcribe} />
               <div className="editor-actions">
                 <button type="button" className="secondary" disabled={!frame} onClick={previewCut}>Play cut</button>
                 <button type="button" className="primary" disabled={!frame} onClick={exportClip}>Export MP4 <span aria-hidden="true">↗</span></button>
