@@ -201,6 +201,14 @@ export function Editor({ suggested }: { suggested: SuggestedCut | null }) {
               <legend className="sr-only">Clip settings</legend>
               <label htmlFor="local-video">Authorized source video</label>
               <input type="file" id="local-video" accept="video/mp4,video/quicktime,.mp4,.mov,.m4v" onChange={chooseFile} />
+              {source && <button type="button" className="text-button clear-source" onClick={() => {
+                setSource(null)
+                setFrame(null)
+                setCaptions([])
+                setPreviewTime(0)
+                setNotice('')
+                setError('')
+              }}>Clear source</button>}
               <p className="field-help">{source ? source.file.name + (frame ? ` · ${frame.duration.toFixed(2)}s · ${frame.width} × ${frame.height}` : '') : 'Choose the matching video you have permission to edit. The file stays on this device.'}</p>
               <label htmlFor="output-title">Clip title</label>
               <input id="output-title" maxLength={90} value={title} onChange={(event) => setTitle(event.target.value)} />

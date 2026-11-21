@@ -1,5 +1,6 @@
 import { env, pipeline } from '@huggingface/transformers'
 import runtimeModule from 'cutroom-ort-module?url'
+import runtimeWasm from 'cutroom-ort-wasm?url'
 import { groupSpeechChunks } from './captions'
 import type { ClipRange } from './settings'
 
@@ -11,16 +12,12 @@ if (env.backends.onnx.wasm) {
   env.backends.onnx.wasm.proxy = false
   env.backends.onnx.wasm.wasmPaths = {
     mjs: new URL(runtimeModule, self.location.href).href,
+    wasm: new URL(runtimeWasm, self.location.href).href,
   }
 }
 
-self.onmessage = async ({ data }: MessageEvent<{ pcm: Float32Array; range: ClipRange; wasmPath: string }>) => {
+self.onmessage = async ({ data }: MessageEvent<{ pcm: Float32Array; range: ClipRange }>) => {
   try {
-    const wasm = env.backends.onnx.wasm
-    if (!wasm) throw new Error('ONNX WebAssembly is unavailable.')
-    const runtime = await fetch(data.wasmPath)
-    if (!runtime.ok || !runtime.body) throw new Error('ONNX WebAssembly could not load.')
-    wasm.wasmBinary = await new Response(runtime.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()
     const transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny', {
       device: 'wasm',
       dtype: 'q8',

@@ -173,3 +173,17 @@ input::file-selector-button { min-height: 46px; padding: .5rem .75rem; margin-ri
 .caption-overlay { position: absolute; bottom: 15.5%; left: 9%; right: 14%; text-align: center; color: #fff; white-space: pre-line; overflow-wrap: anywhere; font-size: clamp(.75rem, 1.75vw, 1rem); font-weight: 750; line-height: 1.2; text-shadow: 0 1px 3px #000, 0 0 3px #000, 1px 1px #000; pointer-events: none; }
 .caption-studio { background: #110f18d9; border-radius: 3px; padding: .3rem; }
 .caption-kinetic .spoken { color: #afbfff; }
+
+.masthead-actions { display: flex; gap: .15rem; align-items: center; }
+.studio-nav { display: flex; align-items: center; gap: .25rem; border-bottom: 1px solid var(--border); margin: 0 0 1rem; }
+.studio-nav a { display: inline-flex; align-items: center; color: var(--muted); min-height: 44px; min-width: 44px; padding-inline: .75rem; border-bottom: 2px solid transparent; text-decoration: none; font-size: .91rem; font-weight: 610; }
+.studio-nav a:hover, .studio-nav a:focus-visible { color: var(--accent); border-color: var(--accent); }
+#highlight-workspace, #cut-editor, #session-library { scroll-margin-top: 1rem; }
+.clear-source { display: block; margin-top: .25rem; }
+.install-dialog { max-width: min(90vw, 26rem); border: 1px solid var(--border); background: var(--surface); color: var(--ink); border-radius: 14px; padding: 1.2rem; }
+.install-dialog::backdrop { background: #080710ab; }
+.install-dialog p { margin-block: .7rem; color: var(--muted); line-height: 1.55; }
+.install-dialog form { display: flex; justify-content: flex-end; margin-top: 1rem; }
+@media (max-width: 380px) {
+  .masthead-actions .text-button { padding-inline: .42rem; font-size: .86rem; }
+}

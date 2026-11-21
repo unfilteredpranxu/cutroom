@@ -12,7 +12,6 @@ const onnxDirectory = dirname(packageRequire.resolve('onnxruntime-web'))
 function packedWasm(): Plugin {
   const sources = {
     ffmpeg: packageRequire.resolve('@ffmpeg/core/wasm'),
-    onnx: join(onnxDirectory, 'ort-wasm-simd-threaded.jsep.wasm'),
   }
   const prefix = 'virtual:cutroom-'
   const packs = new Map<string, { path: string; bytes: Buffer }>()
@@ -53,7 +52,9 @@ function packedWasm(): Plugin {
 export default defineConfig({
   resolve: {
     alias: [
-      { find: /^cutroom-ort-module(?=\?|$)/, replacement: join(onnxDirectory, 'ort-wasm-simd-threaded.jsep.mjs') },
+      { find: 'onnxruntime-web/webgpu', replacement: 'onnxruntime-web/wasm' },
+      { find: /^cutroom-ort-module(?=\?|$)/, replacement: join(onnxDirectory, 'ort-wasm-simd-threaded.mjs') },
+      { find: /^cutroom-ort-wasm(?=\?|$)/, replacement: join(onnxDirectory, 'ort-wasm-simd-threaded.wasm') },
     ],
   },
   worker: { format: 'es' },

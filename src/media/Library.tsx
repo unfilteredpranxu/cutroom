@@ -43,7 +43,7 @@ export function Library({ clips, onRemove }: { clips: RenderedClip[]; onRemove: 
   }
 
   return (
-    <section className="panel clip-library" aria-labelledby="library-title">
+    <section id="session-library" className="panel clip-library" aria-labelledby="library-title">
       <div className="section-bar">
         <h2 id="library-title">Session library</h2>
         <span className="muted">{clips.length} {clips.length === 1 ? 'clip' : 'clips'}</span>

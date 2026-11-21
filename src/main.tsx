@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { lengthOptions, type Analysis, type AnalysisRequest } from '../shared/contracts'
 import { parseYouTubeUrl } from '../shared/youtube'
 import { analyzeVideo, StudioError, unlockStudio } from './api'
+import { Install } from './Install'
 import { Review } from './Review'
 import { Editor } from './media/Editor'
 import type { SuggestedCut } from './media/settings'
@@ -106,7 +107,12 @@ function Studio({ token, onExpired }: { token: string; onExpired: () => void }) 
         <h1>Generate highlights</h1>
         <p className="intro-copy">Turn a public YouTube video into a shortlist of moments worth cutting.</p>
       </div>
-      <div className="workspace">
+      <nav className="studio-nav" aria-label="Studio sections">
+        <a href="#highlight-workspace">Analyze</a>
+        <a href="#cut-editor">Edit cut</a>
+        <a href="#session-library">Library</a>
+      </nav>
+      <div className="workspace" id="highlight-workspace">
         <aside className="source">
           <form className="panel source-panel" onSubmit={analyze} noValidate>
             <h2>Source video</h2>
@@ -130,7 +136,6 @@ function Studio({ token, onExpired }: { token: string; onExpired: () => void }) 
             <button type="submit" className="primary" disabled={loading}>{loading ? 'Analyzing video…' : 'Analyze video'} <span aria-hidden="true">↗</span></button>
             {error && <p className="error" role="alert">{error}</p>}
           </form>
-          <a className="source-link editor-jump" href="#cut-editor">Open local cut editor ↓</a>
         </aside>
         <section className="panel results-panel" aria-labelledby="results-title" aria-busy={loading}>
           <div className="section-bar">
@@ -170,7 +175,10 @@ function App() {
       <a className="skip-link" href="#main">Skip to content</a>
       <header className="masthead">
         <div className="wordmark"><img src="/mark.svg" width="36" height="36" alt="" /> CUTROOM<span>.</span></div>
-        {token && <button className="text-button" type="button" onClick={() => { setNotice(''); setAccess(null) }}>Lock studio</button>}
+        <div className="masthead-actions">
+          <Install />
+          {token && <button className="text-button" type="button" onClick={() => { setNotice(''); setAccess(null) }}>Lock studio</button>}
+        </div>
       </header>
       {token ? (
         <Studio token={token} onExpired={() => { setNotice('Your access token changed. Unlock the studio again.'); setAccess(null) }} />
@@ -180,3 +188,9 @@ function App() {
 }
 
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>)
+
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js').catch(() => {})
+  })
+}

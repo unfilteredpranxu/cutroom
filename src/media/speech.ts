@@ -1,4 +1,3 @@
-import wasmPath from 'virtual:cutroom-onnx'
 import { useMediaEngine } from './engine'
 import type { Caption } from './captions'
 import type { ClipRange } from './settings'
@@ -49,6 +48,6 @@ export async function transcribeClip(file: File, range: ClipRange, report: Progr
         resolve(data.captions)
       } else if (data.type === 'failed') unavailable()
     }
-    worker.postMessage({ pcm, range, wasmPath }, [pcm.buffer])
+    worker.postMessage({ pcm, range }, [pcm.buffer])
   })
 }
